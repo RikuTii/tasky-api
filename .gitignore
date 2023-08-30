@@ -1,0 +1,5 @@
+.vs/
+TaskyAPI/.vs/
+TaskyAPI/bin/
+TaskyAPI/obj/*
+appsettings.json
