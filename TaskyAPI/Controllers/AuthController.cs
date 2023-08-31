@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Primitives;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using TaskyAPI.Data;
 using TaskyAPI.Models;
+using TaskyAPI.Middleware;
 
 namespace TaskyAPI.Controllers
 {
@@ -40,14 +44,6 @@ namespace TaskyAPI.Controllers
 
             PasswordHasher<User> passwordHasher = new PasswordHasher<User>();
             string passwordHash = passwordHasher.HashPassword(user, user.Password);
-
-            UserAccount newUserAccount = new()
-            {
-                Username = "jaakko",
-                Email = "test@test123.com",
-            };
-
-
 
             User newUser = new()
             {
@@ -86,7 +82,7 @@ namespace TaskyAPI.Controllers
                 if (validUser != null)
                 {
                     PasswordHasher<User> passwordHasher = new PasswordHasher<User>();
-                    PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(loginUser, loginUser.Password, loginUser.Password);
+                    PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(loginUser, validUser.Password, loginUser.Password);
                     if (verificationResult != PasswordVerificationResult.Success)
                     {
                         validationErrors.Add("invalid_login", new string[] { "Invalid username or password" });
@@ -106,12 +102,58 @@ namespace TaskyAPI.Controllers
             var tokencontroller = new TokenController(_context, _configuration);
             if(validEmail != null)
             {
-                AccessToken token = await tokencontroller.CreateToken(validEmail);
+                AccessToken token = new AccessToken()
+                {
+                    access_token = "",
+                    refresh_token = "",
+                    userName = validEmail.UserName,
+                    email = validEmail.Email,
+                    id = validEmail.Id,
+                };
+
+                if(validEmail.RefreshToken == "2")
+                {
+                    validEmail.RefreshToken = "0";
+                    UserAccount newUserAccount = new()
+                    {
+                        Username = validEmail.UserName,
+                        Email = validEmail.Email,
+                        UserId = validEmail.Id,
+                    };
+                    _context.Add(newUserAccount);
+                    await _context.SaveChangesAsync();
+
+                    _context.Update(validEmail);
+
+                }
+
                 return Results.Ok(token);
             }
             if (validUser != null)
             {
-                AccessToken token = await tokencontroller.CreateToken(validUser);
+                AccessToken token = new AccessToken()
+                {
+                    access_token = "",
+                    refresh_token = "",
+                    userName = validUser.UserName,
+                    email = validUser.Email,
+                    id = validUser.Id,
+                };
+
+                if (validUser.RefreshToken == "2")
+                {
+                    validUser.RefreshToken = "0";
+                    _context.Update(validUser);
+                    UserAccount newUserAccount = new()
+                    {
+                        Username = validUser.UserName,
+                        Email = validUser.Email,
+                        UserId = validUser.Id,
+                    };
+                    _context.Add(newUserAccount);
+                    await _context.SaveChangesAsync();
+                }
+
                 return Results.Ok(token);
             }
 
@@ -143,9 +185,13 @@ namespace TaskyAPI.Controllers
         }
 
         [Authorize]
+        [ServiceFilter(typeof(AuthTokenParseFilter))]
         [HttpGet("SecureData")]
         public IResult SecureData()
         {
+
+            Console.WriteLine("should write");
+            Console.WriteLine((HttpContext.Items["user_id"]));
 
             return Results.Ok("yay secure data");
         }
