@@ -83,6 +83,10 @@ app.UseCors(builder => builder
      .AllowAnyHeader());
 
 app.UseAuthentication();
+app.UseRouting();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller}/{action=Index}/{id?}");
 
 
 app.UseAuthorization();

@@ -1,18 +1,15 @@
 ﻿
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskyAPI.Data;
 using TaskyAPI.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Identity;
-using System.Security.Claims;
-using System.Text.Json.Nodes;
-using Microsoft.Extensions.Primitives;
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using TaskyAPI.Middleware;
+using Microsoft.AspNetCore.Authorization;
+using System.Text.Json.Nodes;
+using Newtonsoft.Json.Linq;
 
 namespace TaskyAPI.Controllers
 {
@@ -22,48 +19,31 @@ namespace TaskyAPI.Controllers
     public class TasklistController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public TasklistController(ApplicationDbContext context)
+
+        public TasklistController(ApplicationDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         [HttpGet("Index")]
         // GET: Tasks
         public string Index()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            JwtSecurityToken token = null;
-            if (Request.Headers.Keys.Contains("Authorization"))
+            var accountId = HttpContext.Items["account_id"];
+
+            if (accountId == null)
             {
-                StringValues values;
-
-                if (Request.Headers.TryGetValue("Authorization", out values))
-                {
-                    var jwt = values.ToString();
-
-                    if (jwt.Contains("Bearer"))
-                    {
-                        jwt = jwt.Replace("Bearer", "").Trim();
-                    }
-
-                    var handler = new JwtSecurityTokenHandler();
-
-                    token = handler.ReadJwtToken(jwt);
-
-
-                    if (token == null)
-                        return "";
-
-                    userId = token.Subject.ToString();
-                }
+                return "";
             }
 
-            User user = _context.User.Where(e => e.Email == userId).Include(e => e.Account).First();
-            if (user != null)
+            UserAccount account = _context.UserAccount.Where(e => e.Id == (int)accountId).First();
+            if (account != null)
             {
                 var tasklist = _context.TaskList.
-                    Where(e => e.CreatorId == user.Account.Id).
+                    Where(e => e.CreatorId == account.Id).
                     Include(e => e.Tasks!.OrderBy(e => e.Ordering)).
                     ThenInclude(e => e.Creator).
                     Include(e => e.Creator).
@@ -93,7 +73,7 @@ namespace TaskyAPI.Controllers
                 }
 
                 var extraLists = _context.TaskListMeta.
-                    Where(e => e.UserAccountId == user.UserAccountId).
+                    Where(e => e.UserAccountId == account.Id).
                     Include(e => e.TaskList).
                     ThenInclude(e => e.Creator).
                     Include(e => e.TaskList).
@@ -131,27 +111,30 @@ namespace TaskyAPI.Controllers
         {
             if (list != null)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                User user = _context.User.Where(e => e.Email == userId).Include(e => e.Account).First();
-                if (user != null)
+                var accountId = HttpContext.Items["account_id"];
+                if (accountId != null)
                 {
-                    if (list.CreatorId == user.Account.Id)
+                    UserAccount account = _context.UserAccount.Where(e => e.Id == (int)accountId).First();
+                    if (account != null)
                     {
-                        return true;
-                    }
-
-                    var metas = _context.TaskListMeta.Where(e => e.TaskListId == list.Id).ToList();
-                    foreach (var item in metas)
-                    {
-                        if (item.UserAccountId == user.Account.Id)
+                        if (list.CreatorId == account.Id)
                         {
                             return true;
                         }
+
+                        var metas = _context.TaskListMeta.Where(e => e.TaskListId == list.Id).ToList();
+                        foreach (var item in metas)
+                        {
+                            if (item.UserAccountId == account.Id)
+                            {
+                                return true;
+                            }
+                        }
+
+
                     }
-
-
                 }
+
             }
             return false;
         }
@@ -159,7 +142,6 @@ namespace TaskyAPI.Controllers
         [HttpGet("TaskList")]
         public IResult TaskList([FromQuery] int taskListId)
         {
-            Console.WriteLine(taskListId);
             if (taskListId > 0)
             {
                 var tasklist = _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks!.OrderBy(e => e.Ordering)).First();
@@ -176,53 +158,57 @@ namespace TaskyAPI.Controllers
         }
 
         [HttpPost("CreateTaskList")]
-        public async void CreateTaskList([FromBody] TaskyAPI.Models.TaskList task)
+        public async Task<IResult> CreateTaskList([FromBody] TaskyAPI.Models.TaskList task)
         {
-            var userId = HttpContext.Items["user_id"];
-            if (userId != null)
+            var accountId = HttpContext.Items["account_id"];
+            if (accountId != null)
             {
-                int user_id = (int)userId;
-                User user = await _context.User.Where(e => e.Id == user_id).FirstAsync();
-                if (user != null)
+                int account_id = (int)accountId;
+
+                UserAccount account = await _context.UserAccount.Where(e => e.Id == account_id).FirstAsync();
+                if (account != null)
                 {
-                    UserAccount account = await _context.UserAccount.Where(e => e.UserId == user_id).FirstAsync();
-                    if(account != null)
-                    {
-                        task.CreatedDate = DateTime.Now;
-                        task.CreatorId = user.Account.Id;
-                        task.Creator = user.Account;
-                        _context.Add(task);
-                        await _context.SaveChangesAsync();
-                    }
-      
+                    task.CreatedDate = DateTime.Now;
+                    task.CreatorId = account.Id;
+                    task.Creator = account;
+                    _context.Add(task);
+                    await _context.SaveChangesAsync();
+
+                    return Results.Ok("OK");
                 }
             }
 
+            return Results.BadRequest();
+
         }
-      /*  [HttpPost("ShareTaskList")]
+        [HttpPost("ShareTaskList")]
         public void ShareTaskList([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
             var idString = data["id"]?.ToString();
-            if (Int32.TryParse(idString, out int id))
+
+            var accountId = HttpContext.Items["account_id"];
+        
+
+            if (Int32.TryParse(idString, out int id) && accountId != null)
             {
                 var email = data["email"]?.ToString();
                 UserAccount account = _context.UserAccount.Where(e => e.Email == email).First();
                 if (account != null)
                 {
-                    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                    ApplicationUser authUser = _context.Users.Where(e => e.Id == userId).Include(e => e.Account).First();
+                    int account_id = (int)accountId;
+
+                    UserAccount authUser = _context.UserAccount.Where(e => e.Id == account_id).First();
                     if (authUser != null)
                     {
                         //make sure caller owns the tasklist
                         TaskList tasklist = _context.TaskList.Where(e => e.Id == id).First();
-                        if (tasklist.CreatorID == authUser.Account.Id)
+                        if (tasklist.CreatorId == authUser.Id)
                         {
                             TaskListMeta meta = new()
                             {
-                                TaskListID = id,
-                                UserAccountID = account.Id,
-                                Id = null
+                                TaskListId = id,
+                                UserAccountId = account.Id,
                             };
                             _context.Add(meta);
                             _context.SaveChanges();
@@ -235,27 +221,30 @@ namespace TaskyAPI.Controllers
         public void RemoveShareTaskList([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
+            var accountId = HttpContext.Items["account_id"];
+
             var idString = data["id"]?.ToString();
-            if (Int32.TryParse(idString, out int id))
+            if (Int32.TryParse(idString, out int id) && accountId != null)
             {
                 var email = data["email"]?.ToString();
                 UserAccount account = _context.UserAccount.Where(e => e.Email == email).First();
                 if (account != null)
                 {
-                    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                    ApplicationUser authUser = _context.Users.Where(e => e.Id == userId).Include(e => e.Account).First();
+                    int account_id = (int)accountId;
+
+                    UserAccount authUser = _context.UserAccount.Where(e => e.Id == account_id).First();
                     if (authUser != null)
                     {
                         //make sure caller owns the tasklist
                         TaskList tasklist = _context.TaskList.Where(e => e.Id == id).First();
-                        if (tasklist.CreatorID == authUser.Account.Id)
+                        if (tasklist.CreatorId == authUser.Id)
                         {
-                            _context.Remove(_context.TaskListMeta.Where(e => e.TaskListID == id).Where(e => e.UserAccountID == account.Id).First());
+                            _context.Remove(_context.TaskListMeta.Where(e => e.TaskListId == id).Where(e => e.UserAccountId == account.Id).First());
                             _context.SaveChanges();
                         }
                     }
                 }
             }
-        }*/
+        }
     }
 }

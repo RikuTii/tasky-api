@@ -114,17 +114,11 @@ namespace TaskyAPI.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<int?>("UserAccountId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserName")
+                    b.Property<string>("Username")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("UserAccountId")
-                        .IsUnique();
 
                     b.ToTable("User");
                 });
@@ -158,6 +152,8 @@ namespace TaskyAPI.Migrations
                         .HasColumnType("varchar(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("UserAccount");
                 });
@@ -209,13 +205,15 @@ namespace TaskyAPI.Migrations
                     b.Navigation("UserAccount");
                 });
 
-            modelBuilder.Entity("TaskyAPI.Models.User", b =>
+            modelBuilder.Entity("TaskyAPI.Models.UserAccount", b =>
                 {
-                    b.HasOne("TaskyAPI.Models.UserAccount", "Account")
-                        .WithOne("User")
-                        .HasForeignKey("TaskyAPI.Models.User", "UserAccountId");
+                    b.HasOne("TaskyAPI.Models.User", "User")
+                        .WithMany("Accounts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("Account");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaskyAPI.Models.TaskList", b =>
@@ -225,10 +223,9 @@ namespace TaskyAPI.Migrations
                     b.Navigation("Tasks");
                 });
 
-            modelBuilder.Entity("TaskyAPI.Models.UserAccount", b =>
+            modelBuilder.Entity("TaskyAPI.Models.User", b =>
                 {
-                    b.Navigation("User")
-                        .IsRequired();
+                    b.Navigation("Accounts");
                 });
 #pragma warning restore 612, 618
         }

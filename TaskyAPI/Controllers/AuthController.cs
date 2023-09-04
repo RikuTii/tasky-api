@@ -32,7 +32,7 @@ namespace TaskyAPI.Controllers
             {
                 validationErrors.Add("email_taken", new string[] { "Email is already in use" });
             }
-            if (_context.User.Where(a => a.UserName == user.UserName).Any())
+            if (_context.User.Where(a => a.Username == user.Username).Any())
             {
                 validationErrors.Add("user_taken", new string[] { "Username is already in use" });
             }
@@ -47,10 +47,10 @@ namespace TaskyAPI.Controllers
 
             User newUser = new()
             {
-                UserName = user.UserName,
+                Username = user.Username,
                 Email = user.Email,
                 Password = passwordHash,
-                RefreshToken = "2",
+                RefreshToken = "",
             };
 
             _context.Add(newUser);
@@ -66,7 +66,7 @@ namespace TaskyAPI.Controllers
             IDictionary<string, string[]> validationErrors = new Dictionary<string, string[]>();
 
             var validEmail = await _context.User.Where(a => a.Email == loginUser.Email).SingleOrDefaultAsync();
-            var validUser = await _context.User.Where(a => a.UserName == loginUser.Email).SingleOrDefaultAsync();
+            var validUser = await _context.User.Where(a => a.Username == loginUser.Email).SingleOrDefaultAsync();
             if (validEmail != null)
             {
                 PasswordHasher<User> passwordHasher = new PasswordHasher<User>();
@@ -106,25 +106,45 @@ namespace TaskyAPI.Controllers
                 {
                     access_token = "",
                     refresh_token = "",
-                    userName = validEmail.UserName,
+                    userName = validEmail.Username,
                     email = validEmail.Email,
                     id = validEmail.Id,
                 };
 
-                if(validEmail.RefreshToken == "2")
+                if(validEmail.RefreshToken == "")
                 {
-                    validEmail.RefreshToken = "0";
+                    validEmail.RefreshToken = tokencontroller.GenerateRefreshToken();
                     UserAccount newUserAccount = new()
                     {
-                        Username = validEmail.UserName,
+                        Username = validEmail.Username,
                         Email = validEmail.Email,
                         UserId = validEmail.Id,
                     };
+
+                    validEmail.Accounts = new List<UserAccount>
+                    {
+                        newUserAccount
+                    };
+                    _context.Update(validEmail);
                     _context.Add(newUserAccount);
                     await _context.SaveChangesAsync();
 
-                    _context.Update(validEmail);
-
+                    var account = _context.UserAccount.Where(e => e.UserId == validEmail.Id).FirstOrDefault();
+                    if(account != null)
+                    {
+                        token.id = account.Id;
+                        token.userName = account.Username;
+                    }
+                }
+                else
+                {
+                    //temporary single account
+                    var account = _context.UserAccount.Where(e => e.UserId == validEmail.Id).FirstOrDefault();
+                    if (account != null)
+                    {
+                        token.id = account.Id;
+                        token.userName = account.Username;
+                    }
                 }
 
                 return Results.Ok(token);
@@ -135,23 +155,46 @@ namespace TaskyAPI.Controllers
                 {
                     access_token = "",
                     refresh_token = "",
-                    userName = validUser.UserName,
+                    userName = validUser.Username,
                     email = validUser.Email,
                     id = validUser.Id,
                 };
 
-                if (validUser.RefreshToken == "2")
+                if (validUser.RefreshToken == "")
                 {
-                    validUser.RefreshToken = "0";
-                    _context.Update(validUser);
+                    validUser.RefreshToken = tokencontroller.GenerateRefreshToken();
                     UserAccount newUserAccount = new()
                     {
-                        Username = validUser.UserName,
+                        Username = validUser.Username,
                         Email = validUser.Email,
                         UserId = validUser.Id,
                     };
                     _context.Add(newUserAccount);
+
+                    validUser.Accounts = new List<UserAccount>
+                    {
+                        newUserAccount
+                    };
+                    _context.Update(validUser);
+
                     await _context.SaveChangesAsync();
+
+                    var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
+                    if (account != null)
+                    {
+                        token.id = account.Id;
+                        token.userName = account.Username;
+                    }
+                }
+                else
+                {
+                    //temporary single account
+                    var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
+                    if(account != null)
+                    {
+                                token.id = account.Id;
+                        token.userName = account.Username;
+                    }
                 }
 
                 return Results.Ok(token);

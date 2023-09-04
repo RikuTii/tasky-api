@@ -23,9 +23,11 @@ namespace TaskyAPI.Data
 
             modelBuilder.Entity<UserAccount>()
               .HasOne(e => e.User)
-              .WithOne(e => e.Account)
-              .HasForeignKey<User>(e => e.UserAccountId);
+              .WithMany(e => e.Accounts);
 
+            modelBuilder.Entity<User>()
+                .HasMany(e => e.Accounts)
+                .WithOne(e => e.User);
 
             modelBuilder.Entity<TaskList>()
             .HasMany(e => e.Tasks)
@@ -34,8 +36,11 @@ namespace TaskyAPI.Data
             .HasPrincipalKey(e => e.Id);
 
 
-           // modelBuilder.Entity<TaskListMeta>().Property(e => e.Id).HasComputedColumnSql();
-
+            // modelBuilder.Entity<TaskListMeta>().Property(e => e.Id).HasComputedColumnSql();
+            modelBuilder.Entity<TaskyAPI.Models.TaskList>()
+            .HasOne(e => e.Creator)
+            .WithOne()
+            .HasForeignKey<TaskyAPI.Models.TaskList>(e => e.CreatorId);
 
             modelBuilder.Entity<TaskyAPI.Models.Task>()
             .HasOne(e => e.Creator)

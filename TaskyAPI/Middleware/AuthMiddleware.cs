@@ -38,8 +38,8 @@ namespace TaskyAPI.Middleware
                     {
                         if (cvalues == "id")
                         {
-                            int value = Int32.Parse(token.Payload.Values.ElementAt(iter).ToString());
-                            context.HttpContext.Items.Add("user_id", value);
+                            int value = Int32.Parse(token.Payload.Values.ElementAt(iter).ToString() ?? "0");
+                            context.HttpContext.Items.Add("account_id", value);
                         }
                         iter++;
                     }

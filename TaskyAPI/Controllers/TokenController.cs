@@ -60,7 +60,7 @@ namespace TaskyAPI.Controllers
                 {
                         new Claim("Id", Guid.NewGuid().ToString()),
                         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                        new Claim(JwtRegisteredClaimNames.Email, user.UserName),
+                        new Claim(JwtRegisteredClaimNames.Email, user.Username),
                         new Claim(JwtRegisteredClaimNames.Jti,
                         Guid.NewGuid().ToString())
                     }),
@@ -84,7 +84,7 @@ namespace TaskyAPI.Controllers
                 access_token = stringToken,
                 refresh_token = user.RefreshToken,
                 email = user.Email,
-                userName = user.UserName,
+                userName = user.Username,
             };
 
             return result;
@@ -144,7 +144,7 @@ namespace TaskyAPI.Controllers
                             {
                         new Claim("Id", Guid.NewGuid().ToString()),
                         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                        new Claim(JwtRegisteredClaimNames.Email, user.UserName),
+                        new Claim(JwtRegisteredClaimNames.Email, user.Username),
                         new Claim(JwtRegisteredClaimNames.Jti,
                         Guid.NewGuid().ToString())
                     }),
@@ -167,7 +167,7 @@ namespace TaskyAPI.Controllers
                             access_token = stringToken,
                             refresh_token = user.RefreshToken,
                             email = user.Email,
-                            userName = user.UserName,
+                            userName = user.Username,
                         };
 
                         return result;

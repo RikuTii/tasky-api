@@ -6,16 +6,15 @@ namespace TaskyAPI.Models
     {
         public int Id { get; set; }
 
-        public string UserName { get; set; }
+        public string Username { get; set; }
         public string Password { get; set; } 
         public string Email { get; set; }
 
         [JsonIgnore]
-        public virtual UserAccount Account { get; set; } 
-        public int? UserAccountId { get; set; }
-
-        [JsonIgnore]
         public string RefreshToken { get; set; }
+
+        public virtual ICollection<UserAccount> Accounts { get; set; }
+
 
     }
 }
