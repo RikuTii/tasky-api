@@ -60,18 +60,54 @@ namespace TaskyAPI.Controllers
             return Results.Ok("Success");
         }
 
+
+
+        [Authorize]
+        [ServiceFilter(typeof(AuthTokenParseFilter))]
+        [HttpPost("UpdateDevice")]
+        public async Task<IResult> UpdateDevice([FromBody] UserDevice device)
+        {
+            var accountId = HttpContext.Items["account_id"];
+            if (accountId != null)
+            {
+                int account_id = (int)accountId;
+
+                UserDevice? latestDevice = await _context.UserDevice.Where(e => e.AccountId == account_id).OrderBy(e => e.LastActive).FirstOrDefaultAsync();
+                if(latestDevice != null)
+                {
+                    latestDevice.FcmToken = device.FcmToken;
+                    _context.Update(latestDevice);
+                    await _context.SaveChangesAsync();
+                }
+ 
+                return Results.Ok();
+            }
+
+            return Results.Unauthorized();
+
+        }
+
         [HttpPost("Login")]
         public async Task<IResult> Login([FromBody] User loginUser)
         {
             IDictionary<string, string[]> validationErrors = new Dictionary<string, string[]>();
 
-            var validEmail = await _context.User.Where(a => a.Email == loginUser.Email).SingleOrDefaultAsync();
-            var validUser = await _context.User.Where(a => a.Username == loginUser.Email).SingleOrDefaultAsync();
+            User? validEmail = await _context.User.Where(a => a.Email == loginUser.Email).FirstOrDefaultAsync();
+            User? validUser;
             if (validEmail != null)
             {
+                validUser = validEmail;
+            }
+            else
+            {
+                validUser = await _context.User.Where(a => a.Username == loginUser.Email).FirstOrDefaultAsync();
+            }
+
+
+            if (validUser != null)
+            {
                 PasswordHasher<User> passwordHasher = new PasswordHasher<User>();
-                PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(loginUser, validEmail.Password, loginUser.Password);
-        
+                PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(loginUser, validUser.Password, loginUser.Password);
                 if (verificationResult != PasswordVerificationResult.Success)
                 {
                     validationErrors.Add("invalid_login", new string[] { "Invalid username or password" });
@@ -79,200 +115,101 @@ namespace TaskyAPI.Controllers
             }
             else
             {
-                if (validUser != null)
-                {
-                    PasswordHasher<User> passwordHasher = new PasswordHasher<User>();
-                    PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(loginUser, validUser.Password, loginUser.Password);
-                    if (verificationResult != PasswordVerificationResult.Success)
-                    {
-                        validationErrors.Add("invalid_login", new string[] { "Invalid username or password" });
-                    }
-                }
-                else
-                {
-                    validationErrors.Add("invalid_login", new string[] { "Invalid username or password" });
-                }
+                validationErrors.Add("invalid_login", new string[] { "Invalid username or password" });
             }
 
-            if (validationErrors.Count > 0)
+
+            if (validationErrors.Count > 0 || validUser == null)
             {
                 return Results.ValidationProblem(validationErrors, "error");
             }
 
-            var tokencontroller = new TokenController(_context, _configuration);
-            if(validEmail != null)
+            TokenController tokencontroller = new TokenController(_context, _configuration);
+
+            AccessToken token = new AccessToken()
             {
-                AccessToken token = new AccessToken()
+                access_token = "",
+                refresh_token = "",
+                userName = validUser.Username,
+                email = validUser.Email,
+                id = validUser.Id,
+                fcm_token = "pending"
+            };
+
+            if (validUser.RefreshToken == "")
+            {
+                validUser.RefreshToken = tokencontroller.GenerateRefreshToken();
+                UserAccount newUserAccount = new()
                 {
-                    access_token = "",
-                    refresh_token = "",
-                    userName = validEmail.Username,
-                    email = validEmail.Email,
-                    id = validEmail.Id,
+                    Username = validUser.Username,
+                    Email = validUser.Email,
+                    UserId = validUser.Id,
                 };
+                _context.Add(newUserAccount);
 
-                if(validEmail.RefreshToken == "")
-                {
-                    validEmail.RefreshToken = tokencontroller.GenerateRefreshToken();
-                    UserAccount newUserAccount = new()
-                    {
-                        Username = validEmail.Username,
-                        Email = validEmail.Email,
-                        UserId = validEmail.Id,
-                    };
-
-                    validEmail.Accounts = new List<UserAccount>
+                validUser.Accounts = new List<UserAccount>
                     {
                         newUserAccount
                     };
-                    _context.Update(validEmail);
-                    _context.Add(newUserAccount);
-                    await _context.SaveChangesAsync();
+                _context.Update(validUser);
 
-                    var account = _context.UserAccount.Where(e => e.UserId == validEmail.Id).FirstOrDefault();
-                    if(account != null)
-                    {
-                        token.id = account.Id;
-                        token.userName = account.Username;
-                    }
-                }
-                else
+                await _context.SaveChangesAsync();
+                if (loginUser.Accounts.Count > 0 && loginUser.Accounts.ElementAt(0)?.Devices?.Count > 0)
                 {
-                    //temporary single account
-                    var account = _context.UserAccount.Where(e => e.UserId == validEmail.Id).FirstOrDefault();
-                    if (account != null)
+                    UserAccount deviceAccount = loginUser.Accounts.ElementAt(0);
+                    if(deviceAccount != null && deviceAccount.Devices != null)
                     {
-                        token.id = account.Id;
-                        token.userName = account.Username;
+                        UserDevice loginDevice = deviceAccount.Devices.ElementAt(0);
+                        if(loginDevice != null)
+                        {
+                            UserDevice newDevice = new()
+                            {
+                                Type = loginDevice.Type,
+                                LastActive = DateTime.Now,
+                                AccountId = newUserAccount.Id
+                            };
+
+                            _context.Add(newDevice);
+                            await _context.SaveChangesAsync();
+                        }                 
                     }
+                  
                 }
+             
 
-                return Results.Ok(token);
+                var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
+                if (account != null)
+                {
+                    token.id = account.Id;
+                    token.userName = account.Username;
+                }
             }
-            if (validUser != null)
+            else
             {
-                AccessToken token = new AccessToken()
+
+                //temporary single account
+                var account = await _context.UserAccount.Where(e => e.UserId == validUser.Id).Include(e => e.Devices!.OrderBy(e => e.LastActive)).FirstAsync();
+                if (account != null)
                 {
-                    access_token = "",
-                    refresh_token = "",
-                    userName = validUser.Username,
-                    email = validUser.Email,
-                    id = validUser.Id,
-                };
-
-                if (validUser.RefreshToken == "")
-                {
-                    validUser.RefreshToken = tokencontroller.GenerateRefreshToken();
-                    UserAccount newUserAccount = new()
+                    if (account.Devices != null && account.Devices.Count > 0)
                     {
-                        Username = validUser.Username,
-                        Email = validUser.Email,
-                        UserId = validUser.Id,
-                    };
-                    _context.Add(newUserAccount);
-
-                    validUser.Accounts = new List<UserAccount>
-                    {
-                        newUserAccount
-                    };
-                    _context.Update(validUser);
-
-                    await _context.SaveChangesAsync();
-
-                    var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
-                    if (account != null)
-                    {
-                        token.id = account.Id;
-                        token.userName = account.Username;
+                        UserDevice? firstDevice = account.Devices.FirstOrDefault();
+                        if(firstDevice != null)
+                        {
+                            if(firstDevice.FcmToken != null)
+                            {
+                                token.fcm_token = firstDevice.FcmToken;
+                            }
+                        }
                     }
+   
+                    token.id = account.Id;
+                    token.userName = account.Username;
                 }
-                else
-                {
-                    //temporary single account
-                    var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
-                    if(account != null)
-                    {
-                                token.id = account.Id;
-                        token.userName = account.Username;
-                    }
-                }
-
-                return Results.Ok(token);
             }
 
+            return Results.Ok(token);
 
-            return Results.Ok("logged in");
-        }
-
-
-
-        // POST: AuthController/Create
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult Create(IFormCollection collection)
-        {
-            try
-            {
-                return RedirectToAction(nameof(Index));
-            }
-            catch
-            {
-                return View();
-            }
-        }
-
-        // GET: AuthController/Edit/5
-        public ActionResult Edit(int id)
-        {
-            return View();
-        }
-
-        [Authorize]
-        [ServiceFilter(typeof(AuthTokenParseFilter))]
-        [HttpGet("SecureData")]
-        public IResult SecureData()
-        {
-
-            Console.WriteLine("should write");
-            Console.WriteLine((HttpContext.Items["user_id"]));
-
-            return Results.Ok("yay secure data");
-        }
-
-        // POST: AuthController/Edit/5
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult Edit(int id, IFormCollection collection)
-        {
-            try
-            {
-                return RedirectToAction(nameof(Index));
-            }
-            catch
-            {
-                return View();
-            }
-        }
-
-        // GET: AuthController/Delete/5
-        public ActionResult Delete(int id)
-        {
-            return View();
-        }
-
-        // POST: AuthController/Delete/5
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult Delete(int id, IFormCollection collection)
-        {
-            try
-            {
-                return RedirectToAction(nameof(Index));
-            }
-            catch
-            {
-                return View();
-            }
         }
     }
 }

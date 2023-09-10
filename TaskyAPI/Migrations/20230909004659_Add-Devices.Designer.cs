@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaskyAPI.Data;
 
@@ -10,9 +11,11 @@ using TaskyAPI.Data;
 namespace TaskyAPI.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230909004659_Add-Devices")]
+    partial class AddDevices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -262,24 +265,33 @@ namespace TaskyAPI.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("AuthToken")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("FcmToken")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<DateTime?>("LastActive")
+                    b.Property<DateTime>("LastActive")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("RefreshToken")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<int?>("UserAccountId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
+                    b.HasIndex("AccountId")
+                        .IsUnique();
+
+                    b.HasIndex("UserAccountId");
 
                     b.ToTable("UserDevice");
                 });
@@ -373,10 +385,14 @@ namespace TaskyAPI.Migrations
             modelBuilder.Entity("TaskyAPI.Models.UserDevice", b =>
                 {
                     b.HasOne("TaskyAPI.Models.UserAccount", "Account")
-                        .WithMany("Devices")
-                        .HasForeignKey("AccountId")
+                        .WithOne()
+                        .HasForeignKey("TaskyAPI.Models.UserDevice", "AccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("TaskyAPI.Models.UserAccount", null)
+                        .WithMany("Devices")
+                        .HasForeignKey("UserAccountId");
 
                     b.Navigation("Account");
                 });

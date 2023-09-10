@@ -16,6 +16,9 @@ namespace TaskyAPI.Data
         public DbSet<UserAccount> UserAccount { get; set; } = default!;
         public DbSet<TaskList> TaskList { get; set; } = default!;
         public DbSet<TaskListMeta> TaskListMeta { get; set; } = default!;
+        public DbSet<Notification> Notification { get; set; } = default!;
+        public DbSet<TaskMeta> TaskMeta { get; set; } = default!;
+        public DbSet<UserDevice> UserDevice { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -35,8 +38,6 @@ namespace TaskyAPI.Data
             .HasForeignKey(e => e.TaskListId)
             .HasPrincipalKey(e => e.Id);
 
-
-            // modelBuilder.Entity<TaskListMeta>().Property(e => e.Id).HasComputedColumnSql();
             modelBuilder.Entity<TaskyAPI.Models.TaskList>()
             .HasOne(e => e.Creator)
             .WithOne()
@@ -47,6 +48,19 @@ namespace TaskyAPI.Data
             .WithOne()
             .HasForeignKey<TaskyAPI.Models.Task>(e => e.CreatorId);
 
+            modelBuilder.Entity<TaskyAPI.Models.Task>()
+             .HasMany(e => e.Meta)
+             .WithOne();
+
+
+            modelBuilder.Entity<UserDevice>()
+           .HasOne(e => e.Account)
+           .WithMany(e => e.Devices).HasForeignKey(e => e.AccountId);
+
+
+            modelBuilder.Entity<TaskMeta>()
+            .HasOne(e => e.File)
+            .WithOne();
         }
     }
 }

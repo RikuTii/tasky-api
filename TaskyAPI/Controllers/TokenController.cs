@@ -19,6 +19,7 @@ namespace TaskyAPI.Controllers
         public string? email { get; set; }
         public string? access_token { get; set; }
         public string? refresh_token { get; set; }
+        public string? fcm_token { get; set; }
         public int? id { get; set; }
     }
     [ApiController]
@@ -68,7 +69,7 @@ namespace TaskyAPI.Controllers
                 Issuer = issuer,
                 Audience = audience,
                 SigningCredentials = new SigningCredentials
-                 (new SymmetricSecurityKey(Encoding.UTF8.GetBytes(strKey)),
+                 (new SymmetricSecurityKey(Encoding.UTF8.GetBytes(strKey ?? "")),
                  SecurityAlgorithms.HmacSha256)
             };
 
@@ -98,7 +99,7 @@ namespace TaskyAPI.Controllers
                 ValidateAudience = false, //you might want to validate the audience and issuer depending on your use case
                 ValidateIssuer = false,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"])),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "")),
                 ValidateLifetime = false //here we are saying that we don't care about the token's expiration date
             };
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -116,7 +117,7 @@ namespace TaskyAPI.Controllers
 
             var principal = GetPrincipalFromExpiredToken(accessToken);
 
-            var sub = principal.Claims.Where(e => e.Type == ClaimTypes.NameIdentifier).First();
+            var sub = principal.Claims.Where(e => e.Type == ClaimTypes.NameIdentifier).FirstOrDefault();
             if (sub != null)
             {
                 var value = sub.Value.ToString();
@@ -152,7 +153,7 @@ namespace TaskyAPI.Controllers
                             Issuer = issuer,
                             Audience = audience,
                             SigningCredentials = new SigningCredentials
-                             (new SymmetricSecurityKey(Encoding.UTF8.GetBytes(strKey)),
+                             (new SymmetricSecurityKey(Encoding.UTF8.GetBytes(strKey ?? "")),
                              SecurityAlgorithms.HmacSha256)
                         };
 

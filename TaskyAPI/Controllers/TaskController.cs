@@ -1,12 +1,17 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MySqlX.XDevAPI.Common;
 using Newtonsoft.Json.Linq;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
 using TaskyAPI.Data;
 using TaskyAPI.Middleware;
 using TaskyAPI.Models;
+using static System.Net.Mime.MediaTypeNames;
+using System.Drawing;
+using System.IO;
 
 namespace TaskyAPI.Controllers
 {
@@ -30,13 +35,13 @@ namespace TaskyAPI.Controllers
         }
 
         [HttpPost("ReOrderTasks")]
-        public void ReOrderTasks([FromBody] JsonValue json)
+        public async Task<IResult> ReOrderTasks([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
             Int32.TryParse(data["taskListId"]?.ToString(), out int taskListId);
-            if (taskListId == 0) return;
+            if (taskListId == 0) return Results.Problem();
             var tasks = data["tasks"]?.ToList();
-            if (tasks == null) return;
+            if (tasks == null) return Results.Problem();
 
             for (var index = 0; index < tasks.Count; index++)
             {
@@ -44,20 +49,23 @@ namespace TaskyAPI.Controllers
                 if (as_task == null) continue;
                 if (as_task.Id < 1) continue;
 
-                var taskList = _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks)?.First();
+                TaskList? taskList = await _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks).FirstOrDefaultAsync();
 
-                var task = taskList?.Tasks?.Where(e => e.Id == as_task.Id).First();
+                TaskyAPI.Models.Task? task = taskList?.Tasks?.Where(e => e.Id == as_task.Id).FirstOrDefault();
                 if (task != null)
                 {
                     task.Ordering = index + 1;
                     _context.Update(task);
-                    _context.SaveChanges();
+                    await _context.SaveChangesAsync();
+                    return Results.Ok();
                 }
             }
+
+            return Results.Problem();
         }
 
         [HttpPost("RemoveTask")]
-        public void RemoveTask([FromBody] JsonValue json)
+        public async Task<IResult> RemoveTask([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
             var idString = data["id"]?.ToString();
@@ -65,86 +73,132 @@ namespace TaskyAPI.Controllers
             Int32.TryParse(data["taskListId"]?.ToString(), out int taskListId);
             var accountId = HttpContext.Items["account_id"];
 
-            var taskList = _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks).First();
+            TaskList? taskList = await _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks).FirstOrDefaultAsync();
             if (taskList != null && accountId != null)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                UserAccount authUser = _context.UserAccount.Where(e => e.Id == (int)accountId).First();
-                if (authUser.Id == taskList.CreatorId)
+                UserAccount? authUser = await _context.UserAccount.Where(e => e.Id == (int)accountId).FirstOrDefaultAsync();
+                if (authUser != null && authUser.Id == taskList.CreatorId)
                 {
-                    var task = taskList.Tasks?.Where(e => e.Id == taskId).First();
+                    TaskyAPI.Models.Task? task = taskList.Tasks?.Where(e => e.Id == taskId).FirstOrDefault();
                     if (task != null)
                     {
                         _context.Remove(task);
-                        _context.SaveChanges();
+                        await _context.SaveChangesAsync();
 
                         var tasks = taskList.Tasks?.ToList();
-
-                        for (var index = 0; index < tasks.Count; index++)
+                        if (tasks != null)
                         {
-                            if (task.Id == tasks[index].Id)
-                                continue;
-                            var orderTask = tasks[index];
-                            if (orderTask != null)
+                            for (var index = 0; index < tasks.Count; index++)
                             {
-                                orderTask.Ordering = index + 1;
-                                _context.Update(orderTask);
-                                _context.SaveChanges();
+                                if (task.Id == tasks[index].Id)
+                                    continue;
+                                var orderTask = tasks[index];
+                                if (orderTask != null)
+                                {
+                                    orderTask.Ordering = index + 1;
+                                    _context.Update(orderTask);
+                                    await _context.SaveChangesAsync();
+                                    return Results.Ok();
+                                }
                             }
                         }
+
                     }
                 }
             }
 
+            return Results.Problem();
         }
-        [HttpPost("CreateOrUpdateTask")]
-        public void CreateOrUpdateTask([FromBody] JsonValue json)
-        {
-            JObject data = JObject.Parse(json.ToString());
-            var idString = data["id"]?.ToString();
 
-            Int32.TryParse(idString, out int taskId);
-            Int32.TryParse(data["taskListId"]?.ToString(), out int taskListId);
-            Int32.TryParse(data["status"]?.ToString(), out int statusOut);
+
+        [HttpPost("CreateOrUpdateTask")]
+        public async Task<IResult> CreateOrUpdateTask([FromBody] TaskyAPI.Models.Task task)
+        {
             var accountId = HttpContext.Items["account_id"];
-            if(accountId == null)
+            if (accountId == null)
             {
-                return;
+                return Results.Unauthorized();
             }
 
-            if (((TaskyStatus)statusOut) == TaskyStatus.NotCreated)
+            if (task.Status == (int)TaskyStatus.NotCreated)
             {
-                var newTask = new TaskyAPI.Models.Task();
-                newTask.TaskListId = taskListId;
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                UserAccount authUser = _context.UserAccount.Where(e => e.Id == (int)accountId).First();
+                TaskyAPI.Models.Task newTask = new();
+                UserAccount? authUser = await _context.UserAccount.Where(e => e.Id == (int)accountId).FirstOrDefaultAsync();
                 if (authUser != null)
                 {
                     newTask.CreatorId = authUser.Id;
                 }
-                newTask.Title = data["title"]?.ToString();
+                newTask.TaskListId = task.TaskListId;
+                newTask.Title = task.Title;
+                newTask.Description = task.Description;
                 newTask.CreatedDate = DateTime.Now;
                 newTask.Status = (int)TaskyStatus.NotDone;
-                var numTasks = _context.Task.Where(e => e.TaskListId == taskListId).Count();
+                var numTasks = await _context.Task.Where(e => e.TaskListId == task.TaskListId).CountAsync();
                 newTask.Ordering = numTasks;
                 _context.Add(newTask);
-                _context.SaveChanges();
+                await _context.SaveChangesAsync();
             }
             else
             {
-                var taskQuery = _context.Task.Where(e => e.Id == taskId).ToList();
-                if(taskQuery.Count > 0)
+                var taskQuery = await _context.Task.Where(e => e.Id == task.Id).ToListAsync();
+                if (taskQuery.Count > 0)
                 {
-                    var task = taskQuery.ElementAt(0);
-                    task.Title = data["title"]?.ToString();
-                    task.Status = (int)statusOut;
-                    _context.Update(task);
-                    _context.SaveChanges();
+                    var firstTask = taskQuery.ElementAt(0);
+                    firstTask.Title = task.Title;
+                    firstTask.Description = task.Description;
+                    firstTask.Status = task.Status;
+                    firstTask.TimeTrack = task.TimeTrack;
+                    firstTask.TimeElapsed = task.TimeElapsed;
+                    firstTask.TimeEstimate = task.TimeEstimate;
+                    firstTask.ScheduleDate = task.ScheduleDate;
+
+                    _context.Update(firstTask);
+                    await _context.SaveChangesAsync();
                 }
-              
             }
 
+            return Results.Ok();
         }
+
+
+        [HttpPost("AddAttachment")]
+        public async Task<IResult> AddAttachment([FromBody] JsonValue json)
+        {
+            JObject data = JObject.Parse(json.ToString());
+            Int32.TryParse(data["taskId"]?.ToString(), out int taskId);
+            if (taskId == 0) return Results.Problem();
+
+            TaskyAPI.Models.File file = new TaskyAPI.Models.File
+            {
+                CreatedDate = DateTime.Now,
+                Name = "Test file",
+                Path = "www.google.com"
+            };
+
+            _context.Add(file);
+            await _context.SaveChangesAsync();
+
+            TaskMeta meta = new TaskMeta { TaskId = taskId, FileId = file.Id };
+            _context.Add(meta);
+            await _context.SaveChangesAsync();
+
+            return Results.Ok();
+        }
+
+        [HttpPost("RemoveAttachment")]
+        public async Task<IResult> RemoveAttachment([FromBody] TaskMeta meta)
+        {
+            TaskMeta? findMeta = await _context.TaskMeta.Where(e => e.Id == meta.Id).FirstOrDefaultAsync();
+            if (findMeta != null)
+            {
+                _context.Remove(findMeta);
+                await _context.SaveChangesAsync();
+                return Results.Ok();
+            }
+
+            return Results.Unauthorized();
+        }
+
     }
 }

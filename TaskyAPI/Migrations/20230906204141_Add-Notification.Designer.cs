@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaskyAPI.Data;
 
@@ -10,9 +11,11 @@ using TaskyAPI.Data;
 namespace TaskyAPI.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230906204141_Add-Notification")]
+    partial class AddNotification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -33,10 +36,6 @@ namespace TaskyAPI.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("Path")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -67,7 +66,8 @@ namespace TaskyAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReceiverId");
+                    b.HasIndex("ReceiverId")
+                        .IsUnique();
 
                     b.ToTable("Notification");
                 });
@@ -87,28 +87,13 @@ namespace TaskyAPI.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("longtext");
 
-                    b.Property<int?>("IsPast")
-                        .HasColumnType("int");
-
                     b.Property<int>("Ordering")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("ScheduleDate")
-                        .HasColumnType("datetime(6)");
 
                     b.Property<int?>("Status")
                         .HasColumnType("int");
 
                     b.Property<int>("TaskListId")
-                        .HasColumnType("int");
-
-                    b.Property<long?>("TimeElapsed")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("TimeEstimate")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("TimeTrack")
                         .HasColumnType("int");
 
                     b.Property<string>("Title")
@@ -252,43 +237,11 @@ namespace TaskyAPI.Migrations
                     b.ToTable("UserAccount");
                 });
 
-            modelBuilder.Entity("TaskyAPI.Models.UserDevice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<int>("AccountId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("AuthToken")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("FcmToken")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("LastActive")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("RefreshToken")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId");
-
-                    b.ToTable("UserDevice");
-                });
-
             modelBuilder.Entity("TaskyAPI.Models.Notification", b =>
                 {
                     b.HasOne("TaskyAPI.Models.UserAccount", "Receiver")
-                        .WithMany()
-                        .HasForeignKey("ReceiverId")
+                        .WithOne()
+                        .HasForeignKey("TaskyAPI.Models.Notification", "ReceiverId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -370,17 +323,6 @@ namespace TaskyAPI.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TaskyAPI.Models.UserDevice", b =>
-                {
-                    b.HasOne("TaskyAPI.Models.UserAccount", "Account")
-                        .WithMany("Devices")
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Account");
-                });
-
             modelBuilder.Entity("TaskyAPI.Models.Task", b =>
                 {
                     b.Navigation("Meta");
@@ -396,11 +338,6 @@ namespace TaskyAPI.Migrations
             modelBuilder.Entity("TaskyAPI.Models.User", b =>
                 {
                     b.Navigation("Accounts");
-                });
-
-            modelBuilder.Entity("TaskyAPI.Models.UserAccount", b =>
-                {
-                    b.Navigation("Devices");
                 });
 #pragma warning restore 612, 618
         }

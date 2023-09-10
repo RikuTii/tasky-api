@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>563ba4bc-8386-4a56-b3cf-ce7fb8f90359</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileRunArguments>--mount type=bind,source="C:/ProgramData/tasky",target="/usr/share/tasky"</DockerfileRunArguments>
   </PropertyGroup>
 
   <ItemGroup>
