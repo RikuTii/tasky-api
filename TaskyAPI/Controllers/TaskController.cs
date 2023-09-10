@@ -12,6 +12,7 @@ using TaskyAPI.Models;
 using static System.Net.Mime.MediaTypeNames;
 using System.Drawing;
 using System.IO;
+using System.Transactions;
 
 namespace TaskyAPI.Controllers
 {
@@ -42,7 +43,7 @@ namespace TaskyAPI.Controllers
             if (taskListId == 0) return Results.Problem();
             var tasks = data["tasks"]?.ToList();
             if (tasks == null) return Results.Problem();
-
+            bool hasUpdate = false;
             for (var index = 0; index < tasks.Count; index++)
             {
                 var as_task = tasks[index].ToObject<TaskyAPI.Models.Task>();
@@ -56,12 +57,20 @@ namespace TaskyAPI.Controllers
                 {
                     task.Ordering = index + 1;
                     _context.Update(task);
+                    hasUpdate = true;
                     await _context.SaveChangesAsync();
-                    return Results.Ok();
                 }
             }
 
-            return Results.Problem();
+
+            if (hasUpdate)
+            {
+                return Results.Ok();
+            }
+            else
+            {
+                return Results.Problem();
+            }
         }
 
         [HttpPost("RemoveTask")]
