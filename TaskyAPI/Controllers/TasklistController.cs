@@ -176,7 +176,7 @@ namespace TaskyAPI.Controllers
                 int account_id = (int)accountId;
                 List<TaskList> taskLists = await _context.TaskList.Where(e => e.CreatorId == account_id)
                     .Include(e => e.Tasks!.OrderBy(e => e.ScheduleDate)
-                    .Where(e => e.ScheduleDate != null && e.ScheduleDate > DateTime.Now))
+                    .Where(e => e.ScheduleDate != null && e.ScheduleDate > DateTime.UtcNow))
                     .ToListAsync();
                 if(taskLists.Count > 0)
                 {
@@ -278,7 +278,7 @@ namespace TaskyAPI.Controllers
 
         }
         [HttpPost("ShareTaskList")]
-        public void ShareTaskList([FromBody] JsonValue json)
+        public async Task<IResult> ShareTaskList([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
             var idString = data["id"]?.ToString();
@@ -289,16 +289,16 @@ namespace TaskyAPI.Controllers
             if (Int32.TryParse(idString, out int id) && accountId != null)
             {
                 var email = data["email"]?.ToString();
-                UserAccount? account = _context.UserAccount.Where(e => e.Email == email).FirstOrDefault();
+                UserAccount? account = await _context.UserAccount.Where(e => e.Email == email).FirstOrDefaultAsync();
                 if (account != null)
                 {
                     int account_id = (int)accountId;
 
-                    UserAccount? authUser = _context.UserAccount.Where(e => e.Id == account_id).FirstOrDefault();
+                    UserAccount? authUser = await _context.UserAccount.Where(e => e.Id == account_id).FirstOrDefaultAsync();
                     if (authUser != null)
                     {
                         //make sure caller owns the tasklist
-                        TaskList? tasklist = _context.TaskList.Where(e => e.Id == id).FirstOrDefault();
+                        TaskList? tasklist = await _context.TaskList.Where(e => e.Id == id).FirstOrDefaultAsync();
                         if (tasklist != null && tasklist.CreatorId == authUser.Id)
                         {
                             TaskListMeta meta = new()
@@ -307,14 +307,16 @@ namespace TaskyAPI.Controllers
                                 UserAccountId = account.Id,
                             };
                             _context.Add(meta);
-                            _context.SaveChanges();
+                            await _context.SaveChangesAsync();
+                            return Results.Ok();
                         }
                     }
                 }
             }
+            return Results.Problem();
         }
         [HttpPost("RemoveShareTaskList")]
-        public void RemoveShareTaskList([FromBody] JsonValue json)
+        public async Task<IResult> RemoveShareTaskList([FromBody] JsonValue json)
         {
             JObject data = JObject.Parse(json.ToString());
             var accountId = HttpContext.Items["account_id"];
@@ -323,28 +325,31 @@ namespace TaskyAPI.Controllers
             if (Int32.TryParse(idString, out int id) && accountId != null)
             {
                 var email = data["email"]?.ToString();
-                UserAccount? account = _context.UserAccount.Where(e => e.Email == email).FirstOrDefault();
+                UserAccount? account = await _context.UserAccount.Where(e => e.Email == email).FirstOrDefaultAsync();
                 if (account != null)
                 {
                     int account_id = (int)accountId;
 
-                    UserAccount? authUser = _context.UserAccount.Where(e => e.Id == account_id).FirstOrDefault();
+                    UserAccount? authUser = await _context.UserAccount.Where(e => e.Id == account_id).FirstOrDefaultAsync();
                     if (authUser != null)
                     {
                         //make sure caller owns the tasklist
-                        TaskList? tasklist = _context.TaskList.Where(e => e.Id == id).FirstOrDefault();
+                        TaskList? tasklist = await _context.TaskList.Where(e => e.Id == id).FirstOrDefaultAsync();
                         if (tasklist != null && tasklist.CreatorId == authUser.Id)
                         {
-                            TaskListMeta? meta = _context.TaskListMeta.Where(e => e.TaskListId == id).Where(e => e.UserAccountId == account.Id).FirstOrDefault();
+                            TaskListMeta? meta = await _context.TaskListMeta.Where(e => e.TaskListId == id).Where(e => e.UserAccountId == account.Id).FirstOrDefaultAsync();
                             if(meta != null)
                             {
                                 _context.Remove(meta);
-                                _context.SaveChanges();
+                                await _context.SaveChangesAsync();
+                                return Results.Ok();
                             }
                         }
                     }
                 }
             }
+
+            return Results.Problem();
         }
     }
 }

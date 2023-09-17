@@ -116,8 +116,7 @@ namespace TaskyAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatorId")
-                        .IsUnique();
+                    b.HasIndex("CreatorId");
 
                     b.HasIndex("TaskListId");
 
@@ -144,24 +143,26 @@ namespace TaskyAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatorId")
-                        .IsUnique();
+                    b.HasIndex("CreatorId");
 
                     b.ToTable("TaskList");
                 });
 
             modelBuilder.Entity("TaskyAPI.Models.TaskListMeta", b =>
                 {
-                    b.Property<int?>("TaskListId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<int>("Id")
+                    b.Property<int?>("TaskListId")
                         .HasColumnType("int");
 
                     b.Property<int?>("UserAccountId")
                         .HasColumnType("int");
 
-                    b.HasKey("TaskListId");
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskListId");
 
                     b.HasIndex("UserAccountId");
 
@@ -205,7 +206,6 @@ namespace TaskyAPI.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("RefreshToken")
-                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Username")
@@ -267,7 +267,7 @@ namespace TaskyAPI.Migrations
                     b.Property<string>("FcmToken")
                         .HasColumnType("longtext");
 
-                    b.Property<DateTime?>("LastActive")
+                    b.Property<DateTime>("LastActive")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("RefreshToken")
@@ -298,8 +298,8 @@ namespace TaskyAPI.Migrations
             modelBuilder.Entity("TaskyAPI.Models.Task", b =>
                 {
                     b.HasOne("TaskyAPI.Models.UserAccount", "Creator")
-                        .WithOne()
-                        .HasForeignKey("TaskyAPI.Models.Task", "CreatorId")
+                        .WithMany()
+                        .HasForeignKey("CreatorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -317,8 +317,8 @@ namespace TaskyAPI.Migrations
             modelBuilder.Entity("TaskyAPI.Models.TaskList", b =>
                 {
                     b.HasOne("TaskyAPI.Models.UserAccount", "Creator")
-                        .WithOne()
-                        .HasForeignKey("TaskyAPI.Models.TaskList", "CreatorId")
+                        .WithMany()
+                        .HasForeignKey("CreatorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -329,9 +329,7 @@ namespace TaskyAPI.Migrations
                 {
                     b.HasOne("TaskyAPI.Models.TaskList", "TaskList")
                         .WithMany("TaskListMetas")
-                        .HasForeignKey("TaskListId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TaskListId");
 
                     b.HasOne("TaskyAPI.Models.UserAccount", "UserAccount")
                         .WithMany()

@@ -35,6 +35,42 @@ namespace TaskyAPI.Controllers
             _context = context;
         }
 
+
+        async Task<bool> IsAuthorizedToEditTask(TaskyAPI.Models.Task task)
+        {
+            if (task != null)
+            {
+                var accountId = HttpContext.Items["account_id"];
+                if (accountId != null)
+                {
+                    UserAccount? account = await _context.UserAccount.Where(e => e.Id == (int)accountId).FirstOrDefaultAsync();
+                    if (account != null)
+                    {
+                        TaskList? list = await _context.TaskList.Where(e => e.Id == task.TaskListId).FirstOrDefaultAsync();
+                        if (list == null)
+                            return false;
+                        if (list.CreatorId == account.Id)
+                        {
+                            return true;
+                        }
+
+                        var metas = await _context.TaskListMeta.Where(e => e.TaskListId == list.Id).ToListAsync();
+                        foreach (var item in metas)
+                        {
+                            if (item.UserAccountId == account.Id)
+                            {
+                                return true;
+                            }
+                        }
+
+
+                    }
+                }
+
+            }
+            return false;
+        }
+
         [HttpPost("ReOrderTasks")]
         public async Task<IResult> ReOrderTasks([FromBody] JsonValue json)
         {
@@ -53,7 +89,7 @@ namespace TaskyAPI.Controllers
                 TaskList? taskList = await _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks).FirstOrDefaultAsync();
 
                 TaskyAPI.Models.Task? task = taskList?.Tasks?.Where(e => e.Id == as_task.Id).FirstOrDefault();
-                if (task != null)
+                if (task != null && await IsAuthorizedToEditTask(task))
                 {
                     task.Ordering = index + 1;
                     _context.Update(task);
@@ -86,11 +122,9 @@ namespace TaskyAPI.Controllers
             if (taskList != null && accountId != null)
             {
 
-                UserAccount? authUser = await _context.UserAccount.Where(e => e.Id == (int)accountId).FirstOrDefaultAsync();
-                if (authUser != null && authUser.Id == taskList.CreatorId)
-                {
+        
                     TaskyAPI.Models.Task? task = taskList.Tasks?.Where(e => e.Id == taskId).FirstOrDefault();
-                    if (task != null)
+                    if (task != null && await IsAuthorizedToEditTask(task))
                     {
                         _context.Remove(task);
                         await _context.SaveChangesAsync();
@@ -113,7 +147,7 @@ namespace TaskyAPI.Controllers
                             }
                         }
 
-                    }
+                    
                 }
             }
 
@@ -126,6 +160,13 @@ namespace TaskyAPI.Controllers
         {
             var accountId = HttpContext.Items["account_id"];
             if (accountId == null)
+            {
+                return Results.Unauthorized();
+            }
+
+            bool canCreateOrEdit = await IsAuthorizedToEditTask(task);
+
+            if(!canCreateOrEdit)
             {
                 return Results.Unauthorized();
             }
@@ -147,6 +188,8 @@ namespace TaskyAPI.Controllers
                 newTask.Ordering = numTasks;
                 _context.Add(newTask);
                 await _context.SaveChangesAsync();
+
+                return Results.Ok(newTask);
             }
             else
             {
@@ -164,6 +207,13 @@ namespace TaskyAPI.Controllers
 
                     _context.Update(firstTask);
                     await _context.SaveChangesAsync();
+
+                    TaskyAPI.Models.Task markTask = new()
+                    {
+                        Status = 0,
+                    };
+
+                    return Results.Ok(markTask);
                 }
             }
 

@@ -11,7 +11,7 @@ namespace TaskyAPI.Models
         public string Email { get; set; }
 
         [JsonIgnore]
-        public string RefreshToken { get; set; }
+        public string? RefreshToken { get; set; }
 
         public virtual ICollection<UserAccount> Accounts { get; set; }
 

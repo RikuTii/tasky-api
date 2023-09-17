@@ -9,8 +9,8 @@ namespace TaskyAPI.Models
         public int AccountId { get; set; }
         public virtual UserAccount Account { get; set; }
         public DateTime LastActive { get; set; }
-        public string AuthToken { get; set; }
-        public string RefreshToken { get; set; }
-        public string FcmToken { get; set; }
+        public string? AuthToken { get; set; }
+        public string? RefreshToken { get; set; }
+        public string? FcmToken { get; set; }
     }
 }

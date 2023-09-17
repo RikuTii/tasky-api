@@ -175,7 +175,17 @@ namespace TaskyAPI.Controllers
                     }
                   
                 }
-             
+
+                TaskList defaultList = new()
+                {
+                    Name = "Default",
+                    Description = "",
+                    CreatedDate = DateTime.Now,
+                    CreatorId = newUserAccount.Id
+                };
+                _context.Add(defaultList);
+                await _context.SaveChangesAsync();
+
 
                 var account = _context.UserAccount.Where(e => e.UserId == validUser.Id).FirstOrDefault();
                 if (account != null)

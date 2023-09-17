@@ -13,7 +13,7 @@ using TaskyAPI.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connection = builder.Configuration["DatabaseConnection"];
+var connection = Environment.GetEnvironmentVariable("CONNECTION_STRING");
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseMySql(connection, ServerVersion.AutoDetect(connection)));
 
 // Add services to the container.
@@ -25,9 +25,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     options.JsonSerializerOptions.WriteIndented = true;
 }); ;
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
 builder.Services.AddScoped<AuthTokenParseFilter>();
 
 
@@ -43,9 +41,9 @@ builder.Services.AddAuthentication("Bearer")
         ValidateAudience = false,
         ValidateLifetime = false,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "")),
+        ValidIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER"),
+        ValidAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE"),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("JWT_KEY") ?? "")),
         ClockSkew = TimeSpan.Zero
     };
 });
@@ -64,21 +62,26 @@ builder.Services.Configure<JsonOptions>(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var serviceScope = app.Services.CreateScope())
+{
+    var dbContext = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
-    //app.UseSwagger();
-    //app.UseSwaggerUI();
+    app.UseCors(builder => builder
+     .AllowAnyOrigin()
+     .AllowAnyMethod()
+     .AllowAnyHeader());
+
 }
 else
 {
     app.UseHttpsRedirection();
 }
 
-app.UseCors(builder => builder
-     .AllowAnyOrigin()
-     .AllowAnyMethod()
-     .AllowAnyHeader());
+
 
 app.UseAuthentication();
 app.UseRouting();
@@ -88,7 +91,6 @@ app.MapControllerRoute(
 
 
 app.UseAuthorization();
-//app.UseMiddleware<AuthMiddleware>();
 
 app.MapControllers();
 

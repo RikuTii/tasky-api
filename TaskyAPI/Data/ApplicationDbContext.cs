@@ -40,13 +40,13 @@ namespace TaskyAPI.Data
 
             modelBuilder.Entity<TaskyAPI.Models.TaskList>()
             .HasOne(e => e.Creator)
-            .WithOne()
-            .HasForeignKey<TaskyAPI.Models.TaskList>(e => e.CreatorId);
+            .WithMany()
+            .HasForeignKey(e => e.CreatorId);
 
             modelBuilder.Entity<TaskyAPI.Models.Task>()
             .HasOne(e => e.Creator)
-            .WithOne()
-            .HasForeignKey<TaskyAPI.Models.Task>(e => e.CreatorId);
+            .WithMany()
+            .HasForeignKey(e => e.CreatorId);
 
             modelBuilder.Entity<TaskyAPI.Models.Task>()
              .HasMany(e => e.Meta)

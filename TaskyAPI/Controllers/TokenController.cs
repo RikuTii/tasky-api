@@ -51,9 +51,9 @@ namespace TaskyAPI.Controllers
             _context.Update(user);
             await _context.SaveChangesAsync();
 
-            var issuer = _configuration["Jwt:Issuer"];
-            var audience = _configuration["Jwt:Audience"];
-            var strKey = _configuration["Jwt:Key"];
+            var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER");
+            var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE");
+            var strKey = Environment.GetEnvironmentVariable("JWT_KEY");
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {

@@ -3,3 +3,7 @@ TaskyAPI/.vs/
 TaskyAPI/bin/
 TaskyAPI/obj/*
 appsettings.json
+TaskyAPI/Properties/
+.env
+
+TaskyAPI/Properties/launchSettings.json
