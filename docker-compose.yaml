@@ -1,0 +1,67 @@
+version: "1.0"
+services:
+  tasky-api:
+    image: "tasky-api:latest"
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - CONNECTION_STRING=${CONNECTION_STRING}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - JWT_KEY=${JWT_KEY}    
+    ports:
+      - "50505:80"
+      - "50506:443"
+    restart: always
+    depends_on:
+      tasky-db:
+       condition: service_started
+    volumes:
+      - img-data:/usr/share/tasky
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+  tasky-next:
+    image: "tasky-next:latest"
+    env_file:
+      - .env
+    restart: always
+    environment:
+      - API_URL=${API_URL}
+      - API_ASSET_URL=${API_ASSET_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_URL_INTERNAL=${NEXTAUTH_URL_INTERNAL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - tasky-api
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+
+  tasky-db:
+    image: "mysql:latest"
+    restart: always
+    command: mysqld --default-authentication-plugin=mysql_native_password
+    env_file:
+      - ".env"
+    environment:
+      MYSQL_ROOT_HOST: ${MYSQL_ROOT_HOST}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql:/var/lib/mysql
+
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+volumes:
+  img-data:
+  mysql:
+

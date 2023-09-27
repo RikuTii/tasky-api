@@ -46,14 +46,7 @@ namespace TaskyAPI.Controllers
             {
                 var tasklist = await _context.TaskList.
                     Where(e => e.CreatorId == account.Id).
-                    Include(e => e.Tasks!.OrderBy(e => e.Ordering)).
-                    ThenInclude(e => e.Creator).
-                    Include(e => e.Tasks!.OrderBy(e => e.Ordering)).
-                    ThenInclude(e => e.Meta!).
-                    ThenInclude(e => e.File).
                     Include(e => e.Creator).
-                    Include(e => e.TaskListMetas!).
-                    ThenInclude(e => e.UserAccount).
                     AsSplitQuery().
                     ToListAsync();
 
@@ -80,13 +73,6 @@ namespace TaskyAPI.Controllers
 
                 var extraLists = await _context.TaskListMeta.
                     Where(e => e.UserAccountId == account.Id).
-                    Include(e => e.TaskList).
-                    ThenInclude(e => e.Tasks!.OrderBy(e => e.Ordering)).
-                    ThenInclude(e => e.Creator).
-                    Include(e => e.TaskList).
-                    ThenInclude(e => e.Tasks!.OrderBy(e => e.Ordering)).
-                    ThenInclude(e => e.Meta!).
-                    ThenInclude(e => e.File).
                     Include(e => e.TaskList).
                     ThenInclude(e => e.Creator).
                     AsSplitQuery().
@@ -202,12 +188,15 @@ namespace TaskyAPI.Controllers
 
 
 
-        [HttpGet("TaskList")]
-        public async Task<IResult> TaskList([FromQuery] int taskListId)
+        [HttpGet("GetTaskList/{taskListId}")]
+        public async Task<IResult> TaskList(int taskListId)
         {
             if (taskListId > 0)
             {
-                TaskList? tasklist = await _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks!.OrderBy(e => e.Ordering)).FirstOrDefaultAsync();
+                TaskList? tasklist = await _context.TaskList.Where(e => e.Id == taskListId)
+                    .Include(e => e.Tasks!.OrderBy(e => e.Ordering))
+                    .ThenInclude(e => e.Meta)
+                    .ThenInclude(e => e.File).FirstOrDefaultAsync();
                 if (tasklist != null)
                 {
                     bool ok = await IsAuthorizedToTaskList(tasklist);
@@ -218,7 +207,7 @@ namespace TaskyAPI.Controllers
                 }
             }
 
-            return Results.BadRequest();
+            return Results.Unauthorized();
         }
 
 

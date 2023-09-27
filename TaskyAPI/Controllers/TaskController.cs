@@ -184,8 +184,11 @@ namespace TaskyAPI.Controllers
                 newTask.Description = task.Description;
                 newTask.CreatedDate = DateTime.Now;
                 newTask.Status = (int)TaskyStatus.NotDone;
-                var numTasks = await _context.Task.Where(e => e.TaskListId == task.TaskListId).CountAsync();
-                newTask.Ordering = numTasks;
+                TaskyAPI.Models.Task? lastTask = await _context.Task.Where(e => e.TaskListId == task.TaskListId).OrderBy(e => e.Ordering).LastOrDefaultAsync();
+                if(lastTask != null)
+                {
+                    newTask.Ordering = lastTask.Ordering + 1;
+                }
                 _context.Add(newTask);
                 await _context.SaveChangesAsync();
 
@@ -220,30 +223,6 @@ namespace TaskyAPI.Controllers
             return Results.Ok();
         }
 
-
-        [HttpPost("AddAttachment")]
-        public async Task<IResult> AddAttachment([FromBody] JsonValue json)
-        {
-            JObject data = JObject.Parse(json.ToString());
-            Int32.TryParse(data["taskId"]?.ToString(), out int taskId);
-            if (taskId == 0) return Results.Problem();
-
-            TaskyAPI.Models.File file = new TaskyAPI.Models.File
-            {
-                CreatedDate = DateTime.Now,
-                Name = "Test file",
-                Path = "www.google.com"
-            };
-
-            _context.Add(file);
-            await _context.SaveChangesAsync();
-
-            TaskMeta meta = new TaskMeta { TaskId = taskId, FileId = file.Id };
-            _context.Add(meta);
-            await _context.SaveChangesAsync();
-
-            return Results.Ok();
-        }
 
         [HttpPost("RemoveAttachment")]
         public async Task<IResult> RemoveAttachment([FromBody] TaskMeta meta)
