@@ -57,6 +57,10 @@ namespace TaskyAPI.Data
            .HasOne(e => e.Account)
            .WithMany(e => e.Devices).HasForeignKey(e => e.AccountId);
 
+            modelBuilder.Entity<Notification>()
+             .HasOne(e => e.Task)
+             .WithMany();
+
 
             modelBuilder.Entity<TaskMeta>()
             .HasOne(e => e.File)

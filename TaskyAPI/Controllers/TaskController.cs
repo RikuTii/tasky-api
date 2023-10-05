@@ -14,6 +14,17 @@ using System.Drawing;
 using System.IO;
 using System.Transactions;
 
+
+namespace TaskyAPI
+{
+    public enum TaskyStatus
+    {
+        NotCreated,
+        NotDone,
+        Done
+    };
+}
+
 namespace TaskyAPI.Controllers
 {
     [Authorize]
@@ -22,13 +33,6 @@ namespace TaskyAPI.Controllers
     public class TaskController : Controller
     {
         private readonly ApplicationDbContext _context;
-
-        public enum TaskyStatus
-        {
-            NotCreated,
-            NotDone,
-            Done
-        }
 
         public TaskController(ApplicationDbContext context)
         {
@@ -196,7 +200,7 @@ namespace TaskyAPI.Controllers
             }
             else
             {
-                var taskQuery = await _context.Task.Where(e => e.Id == task.Id).ToListAsync();
+                List<TaskyAPI.Models.Task> taskQuery = await _context.Task.Where(e => e.Id == task.Id).ToListAsync();
                 if (taskQuery.Count > 0)
                 {
                     var firstTask = taskQuery.ElementAt(0);
@@ -207,6 +211,32 @@ namespace TaskyAPI.Controllers
                     firstTask.TimeElapsed = task.TimeElapsed;
                     firstTask.TimeEstimate = task.TimeEstimate;
                     firstTask.ScheduleDate = task.ScheduleDate;
+
+                    DateTime? scheduleTime = task.ScheduleDate;
+                    if (scheduleTime != null) 
+                    {
+                        Notification? notification = await _context.Notification.FirstOrDefaultAsync(e => e.TaskId == task.Id);
+                        DateTime notifyTime = (DateTime)scheduleTime;
+                        DateTime newTime = notifyTime.AddMinutes(-10);
+                        if (notification != null)
+                        {
+                            notification.CreatedDate = (DateTime)newTime;
+                            _context.Update(notification);
+                        }
+                        else
+                        {
+                            Notification newNotification = new()
+                            {
+                                Name = task.Title,
+                                Data = task.Description ?? "",
+                                ReceiverId = (int)accountId,
+                                TaskId = task.Id,
+                                CreatedDate = newTime
+                            };
+
+                            _context.Add(newNotification);
+                        }
+                    }
 
                     _context.Update(firstTask);
                     await _context.SaveChangesAsync();

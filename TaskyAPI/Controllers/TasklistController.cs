@@ -47,6 +47,8 @@ namespace TaskyAPI.Controllers
                 var tasklist = await _context.TaskList.
                     Where(e => e.CreatorId == account.Id).
                     Include(e => e.Creator).
+                    Include(e => e.TaskListMetas).
+                    ThenInclude(e => e.UserAccount).
                     AsSplitQuery().
                     ToListAsync();
 
@@ -75,6 +77,7 @@ namespace TaskyAPI.Controllers
                     Where(e => e.UserAccountId == account.Id).
                     Include(e => e.TaskList).
                     ThenInclude(e => e.Creator).
+                    Include(e => e.UserAccount).
                     AsSplitQuery().
                     ToListAsync();
 
@@ -164,15 +167,15 @@ namespace TaskyAPI.Controllers
                     .Include(e => e.Tasks!.OrderBy(e => e.ScheduleDate)
                     .Where(e => e.ScheduleDate != null && e.ScheduleDate > DateTime.UtcNow))
                     .ToListAsync();
-                if(taskLists.Count > 0)
+                if (taskLists.Count > 0)
                 {
                     List<TaskyAPI.Models.Task> retnTasks = new List<TaskyAPI.Models.Task>();
-                    foreach(var tasklist in taskLists)
+                    foreach (var tasklist in taskLists)
                     {
                         var tasksOnList = tasklist.Tasks;
-                        if(tasksOnList != null)
+                        if (tasksOnList != null)
                         {
-                            foreach(var task in tasksOnList)
+                            foreach (var task in tasksOnList)
                             {
                                 retnTasks.Add(task);
                             }
@@ -242,8 +245,8 @@ namespace TaskyAPI.Controllers
 
         }
 
-        [HttpPost("CreateTaskList")]
-        public async Task<IResult> CreateTaskList([FromBody] TaskyAPI.Models.TaskList task)
+        [HttpPost("UpdateTaskList")]
+        public async Task<IResult> UpdateTaskList([FromBody] TaskyAPI.Models.TaskList tasklist)
         {
             var accountId = HttpContext.Items["account_id"];
             if (accountId != null)
@@ -253,10 +256,44 @@ namespace TaskyAPI.Controllers
                 UserAccount account = await _context.UserAccount.Where(e => e.Id == account_id).FirstAsync();
                 if (account != null)
                 {
-                    task.CreatedDate = DateTime.Now;
-                    task.CreatorId = account.Id;
-                    task.Creator = account;
-                    _context.Add(task);
+
+                    TaskList? updateList = await _context.TaskList.Where(e => e.Id == tasklist.Id).FirstOrDefaultAsync();
+                    if (updateList != null)
+                    {
+                        bool ok = await IsAuthorizedToTaskList(updateList);
+                        if (ok)
+                        {
+                            updateList.Name = tasklist.Name;
+                            updateList.Description = tasklist.Description;
+                            _context.Update(updateList);
+                            await _context.SaveChangesAsync();
+                            return Results.Ok();
+                        }
+                    }
+
+
+                }
+            }
+
+            return Results.BadRequest();
+
+        }
+
+        [HttpPost("CreateTaskList")]
+        public async Task<IResult> CreateTaskList([FromBody] TaskyAPI.Models.TaskList tasklist)
+        {
+            var accountId = HttpContext.Items["account_id"];
+            if (accountId != null)
+            {
+                int account_id = (int)accountId;
+
+                UserAccount account = await _context.UserAccount.Where(e => e.Id == account_id).FirstAsync();
+                if (account != null)
+                {
+                    tasklist.CreatedDate = DateTime.Now;
+                    tasklist.CreatorId = account.Id;
+                    tasklist.Creator = account;
+                    _context.Add(tasklist);
                     await _context.SaveChangesAsync();
 
                     return Results.Ok("OK");
@@ -264,8 +301,57 @@ namespace TaskyAPI.Controllers
             }
 
             return Results.BadRequest();
-
         }
+
+        [HttpPost("CreateTaskListWithTasks")]
+        public async Task<IResult> CreateTaskListWithTasks([FromBody] JsonValue json)
+        {
+            JObject data = JObject.Parse(json.ToString());
+            var tasks = data["tasks"]?.ToString();
+            if (tasks == null) return Results.Problem();
+            var accountId = HttpContext.Items["account_id"];
+            if (accountId != null)
+            {
+                int account_id = (int)accountId;
+
+                UserAccount account = await _context.UserAccount.Where(e => e.Id == account_id).FirstAsync();
+                if (account != null)
+                {
+                    TaskList tasklist = new()
+                    {
+                        Name = data["Name"].ToString(),
+                        Description = data["Description"].ToString(),
+                        CreatedDate = DateTime.Now,
+                        CreatorId = account.Id,
+                    };
+                    _context.Add(tasklist);
+                    await _context.SaveChangesAsync();
+
+                    char[] separators = new char[] { ';', ',', '\n' };
+                    IEnumerable<string> result = tasks.Split(separators).Take(30);
+                    for (int index = 0;index < result.Count(); index++) 
+                    {
+                        Models.Task newTask = new()
+                        {
+                            TaskListId = tasklist.Id,
+                            Title = result.ElementAt(index),
+                            CreatorId = account.Id,
+                            CreatedDate = DateTime.Now,
+                            Status = (int)TaskyStatus.NotDone,
+                            Ordering = index + 1
+                        };
+
+                        _context.Add(newTask);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    return Results.Ok();
+                }
+            }
+
+            return Results.BadRequest();
+        }
+
         [HttpPost("ShareTaskList")]
         public async Task<IResult> ShareTaskList([FromBody] JsonValue json)
         {
@@ -327,7 +413,7 @@ namespace TaskyAPI.Controllers
                         if (tasklist != null && tasklist.CreatorId == authUser.Id)
                         {
                             TaskListMeta? meta = await _context.TaskListMeta.Where(e => e.TaskListId == id).Where(e => e.UserAccountId == account.Id).FirstOrDefaultAsync();
-                            if(meta != null)
+                            if (meta != null)
                             {
                                 _context.Remove(meta);
                                 await _context.SaveChangesAsync();

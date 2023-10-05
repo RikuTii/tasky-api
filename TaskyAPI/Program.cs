@@ -43,7 +43,7 @@ builder.Services.AddAuthentication("Bearer")
         ValidateIssuerSigningKey = true,
         ValidIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER"),
         ValidAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE"),
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("JWT_KEY") ?? "")),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("JWT_KEY"))),
         ClockSkew = TimeSpan.Zero
     };
 });
@@ -62,11 +62,6 @@ builder.Services.Configure<JsonOptions>(options =>
 
 var app = builder.Build();
 
-using (var serviceScope = app.Services.CreateScope())
-{
-    var dbContext = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
 
 if (app.Environment.IsDevelopment())
 {
@@ -79,6 +74,12 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseHttpsRedirection();
+    using (var serviceScope = app.Services.CreateScope())
+    {
+        var dbContext = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+    }
+
 }
 
 

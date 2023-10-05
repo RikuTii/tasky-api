@@ -6,7 +6,9 @@ namespace TaskyAPI.Models
     {
         public int Id { get; set; }
         public int ReceiverId { get; set; }
+        public int? TaskId { get; set; }
         public virtual UserAccount? Receiver { get; set; }
+        public virtual Task? Task { get; set; }
         public required string Name { get; set; }
         public required string Data { get; set; }
         [DataType(DataType.Date)]

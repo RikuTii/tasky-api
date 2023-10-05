@@ -72,7 +72,7 @@ namespace TaskyAPI.Controllers
             {
                 int account_id = (int)accountId;
 
-                UserDevice? latestDevice = await _context.UserDevice.Where(e => e.AccountId == account_id).OrderBy(e => e.LastActive).FirstOrDefaultAsync();
+                UserDevice? latestDevice = await _context.UserDevice.Where(e => e.AccountId == account_id).OrderByDescending(e => e.LastActive).FirstOrDefaultAsync();
                 if(latestDevice != null)
                 {
                     latestDevice.FcmToken = device.FcmToken;
@@ -198,7 +198,7 @@ namespace TaskyAPI.Controllers
             {
 
                 //temporary single account
-                var account = await _context.UserAccount.Where(e => e.UserId == validUser.Id).Include(e => e.Devices!.OrderBy(e => e.LastActive)).FirstAsync();
+                var account = await _context.UserAccount.Where(e => e.UserId == validUser.Id).Include(e => e.Devices!.OrderByDescending(e => e.LastActive)).FirstAsync();
                 if (account != null)
                 {
                     if (account.Devices != null && account.Devices.Count > 0)
@@ -206,13 +206,48 @@ namespace TaskyAPI.Controllers
                         UserDevice? firstDevice = account.Devices.FirstOrDefault();
                         if(firstDevice != null)
                         {
-                            if(firstDevice.FcmToken != null)
+
+                            if (loginUser.Accounts.Count > 0 && loginUser.Accounts.ElementAt(0)?.Devices?.Count > 0)
                             {
-                                token.fcm_token = firstDevice.FcmToken;
-                            }
+                                UserAccount deviceAccount = loginUser.Accounts.ElementAt(0);
+                                if (deviceAccount != null && deviceAccount.Devices != null)
+                                {
+                                    UserDevice loginDevice = deviceAccount.Devices.ElementAt(0);
+                                    if (loginDevice != null)
+                                    {
+                                        if(loginDevice.Type != firstDevice.Type || (DateTime.Now - firstDevice.LastActive).Days > 30)
+                                        {
+                                            UserDevice newDevice = new()
+                                            {
+                                                Type = loginDevice.Type,
+                                                LastActive = DateTime.Now,
+                                                AccountId = account.Id
+                                            };
+
+                                            _context.Add(newDevice);
+                                            await _context.SaveChangesAsync();
+                                            token.fcm_token = "pending";
+                                        }
+                                        else
+                                        {
+                                            firstDevice.LastActive = DateTime.Now;
+                                            if (firstDevice.FcmToken != null)
+                                            {
+                                                token.fcm_token = firstDevice.FcmToken;
+                                            }
+                                        }                               
+                                    }
+                                }
+
+                            }               
                         }
                     }
-   
+
+                    AccessToken newToken = await tokencontroller.CreateToken(validUser);
+
+                    token.refresh_token = newToken.refresh_token;
+                    token.access_token = newToken.access_token;
+
                     token.id = account.Id;
                     token.userName = account.Username;
                 }
