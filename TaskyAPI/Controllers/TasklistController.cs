@@ -12,6 +12,7 @@ using System.Text.Json.Nodes;
 using Newtonsoft.Json.Linq;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TaskyAPI.Controllers
 {
@@ -21,13 +22,10 @@ namespace TaskyAPI.Controllers
     public class TasklistController : Controller
     {
         private readonly ApplicationDbContext _context;
-        private readonly IConfiguration _configuration;
 
-
-        public TasklistController(ApplicationDbContext context, IConfiguration configuration)
+        public TasklistController(ApplicationDbContext context)
         {
             _context = context;
-            _configuration = configuration;
         }
 
         [HttpGet("Index")]
@@ -381,6 +379,16 @@ namespace TaskyAPI.Controllers
                                 TaskListId = id,
                                 UserAccountId = account.Id,
                             };
+
+                            Notification newNotification = new()
+                            {
+                                Name = tasklist.Name + " tasklist has been shared to you",
+                                Data = "",
+                                ReceiverId = (int)account.Id,
+                                CreatedDate = DateTime.Now
+                            };
+
+                            _context.Add(newNotification);
                             _context.Add(meta);
                             await _context.SaveChangesAsync();
                             return Results.Ok();

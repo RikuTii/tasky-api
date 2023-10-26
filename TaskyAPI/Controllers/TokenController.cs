@@ -10,6 +10,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
+using System.Security.Principal;
 
 namespace TaskyAPI.Controllers
 {
@@ -22,7 +23,6 @@ namespace TaskyAPI.Controllers
         public string? fcm_token { get; set; }
         public int? id { get; set; }
     }
-    [ApiController]
     [Route("[controller]")]
     public class TokenController : Controller
     {
@@ -54,7 +54,8 @@ namespace TaskyAPI.Controllers
             var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER");
             var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE");
             var strKey = Environment.GetEnvironmentVariable("JWT_KEY");
-
+            UserAccount? account = await _context.UserAccount.Where(e => e.UserId == user.Id).FirstOrDefaultAsync();
+            string id = account.Id.ToString();
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[]
@@ -62,6 +63,7 @@ namespace TaskyAPI.Controllers
                         new Claim("Id", Guid.NewGuid().ToString()),
                         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                         new Claim(JwtRegisteredClaimNames.Email, user.Username),
+                        new Claim("id", id),
                         new Claim(JwtRegisteredClaimNames.Jti,
                         Guid.NewGuid().ToString())
                     }),
@@ -99,7 +101,7 @@ namespace TaskyAPI.Controllers
                 ValidateAudience = false, //you might want to validate the audience and issuer depending on your use case
                 ValidateIssuer = false,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "")),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("JWT_KEY"))),
                 ValidateLifetime = false //here we are saying that we don't care about the token's expiration date
             };
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -112,7 +114,7 @@ namespace TaskyAPI.Controllers
         }
 
 
-        public AccessToken RefreshToken(User user, string refreshToken, string accessToken)
+        public async Task<AccessToken> RefreshToken(User user, string refreshToken, string accessToken)
         {
 
             var principal = GetPrincipalFromExpiredToken(accessToken);
@@ -130,12 +132,13 @@ namespace TaskyAPI.Controllers
                         user.RefreshToken = GenerateRefreshToken();
 
                         _context.Update(user);
-                        _context.SaveChanges();
-                        Console.WriteLine("refreshed");
+                        await _context.SaveChangesAsync();
 
-                        var issuer = _configuration["Jwt:Issuer"];
-                        var audience = _configuration["Jwt:Audience"];
-                        var strKey = _configuration["Jwt:Key"];
+                        var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER");
+                        var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE");
+                        var strKey = Environment.GetEnvironmentVariable("JWT_KEY");
+                        UserAccount? account = await _context.UserAccount.Where(e => e.UserId == user.Id).FirstOrDefaultAsync();
+                        string id = account.Id.ToString();
 
                         var key = Base64UrlEncoder.DecodeBytes(strKey);
 
@@ -146,6 +149,7 @@ namespace TaskyAPI.Controllers
                         new Claim("Id", Guid.NewGuid().ToString()),
                         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                         new Claim(JwtRegisteredClaimNames.Email, user.Username),
+                        new Claim("id", id),
                         new Claim(JwtRegisteredClaimNames.Jti,
                         Guid.NewGuid().ToString())
                     }),

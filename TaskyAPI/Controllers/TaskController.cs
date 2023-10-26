@@ -122,40 +122,41 @@ namespace TaskyAPI.Controllers
             Int32.TryParse(data["taskListId"]?.ToString(), out int taskListId);
             var accountId = HttpContext.Items["account_id"];
 
-            TaskList? taskList = await _context.TaskList.Where(e => e.Id == taskListId).Include(e => e.Tasks).FirstOrDefaultAsync();
+            TaskList? taskList = await _context.TaskList.Where(e => e.Id == taskListId)?.Include(e => e.Tasks!).FirstOrDefaultAsync();
             if (taskList != null && accountId != null)
             {
+                TaskyAPI.Models.Task task = taskList.Tasks?.Where(e => e.Id == taskId).FirstOrDefault();
+                if (task != null && await IsAuthorizedToEditTask(task))
+                {
+                    _context.Remove(task);
+                    await _context.SaveChangesAsync();
 
-        
-                    TaskyAPI.Models.Task? task = taskList.Tasks?.Where(e => e.Id == taskId).FirstOrDefault();
-                    if (task != null && await IsAuthorizedToEditTask(task))
+                    var tasks = taskList.Tasks?.ToList();
+                    if (tasks != null)
                     {
-                        _context.Remove(task);
-                        await _context.SaveChangesAsync();
-
-                        var tasks = taskList.Tasks?.ToList();
-                        if (tasks != null)
+                        for (var index = 0; index < tasks.Count; index++)
                         {
-                            for (var index = 0; index < tasks.Count; index++)
+                            if (task.Id == tasks[index].Id)
+                                continue;
+                            var orderTask = tasks[index];
+                            if (orderTask != null)
                             {
-                                if (task.Id == tasks[index].Id)
-                                    continue;
-                                var orderTask = tasks[index];
-                                if (orderTask != null)
-                                {
-                                    orderTask.Ordering = index + 1;
-                                    _context.Update(orderTask);
-                                    await _context.SaveChangesAsync();
-                                    return Results.Ok();
-                                }
+                                orderTask.Ordering = index + 1;
+                                _context.Update(orderTask);
+                                await _context.SaveChangesAsync();
+                                return Results.Ok();
                             }
                         }
+                    }
+                }
 
-                    
+                if(task == null)
+                {
+                    return Results.NotFound();
                 }
             }
 
-            return Results.Problem();
+            return Results.Unauthorized();
         }
 
 
@@ -170,7 +171,7 @@ namespace TaskyAPI.Controllers
 
             bool canCreateOrEdit = await IsAuthorizedToEditTask(task);
 
-            if(!canCreateOrEdit)
+            if (!canCreateOrEdit)
             {
                 return Results.Unauthorized();
             }
@@ -189,7 +190,7 @@ namespace TaskyAPI.Controllers
                 newTask.CreatedDate = DateTime.Now;
                 newTask.Status = (int)TaskyStatus.NotDone;
                 TaskyAPI.Models.Task? lastTask = await _context.Task.Where(e => e.TaskListId == task.TaskListId).OrderBy(e => e.Ordering).LastOrDefaultAsync();
-                if(lastTask != null)
+                if (lastTask != null)
                 {
                     newTask.Ordering = lastTask.Ordering + 1;
                 }
@@ -213,7 +214,7 @@ namespace TaskyAPI.Controllers
                     firstTask.ScheduleDate = task.ScheduleDate;
 
                     DateTime? scheduleTime = task.ScheduleDate;
-                    if (scheduleTime != null) 
+                    if (scheduleTime != null)
                     {
                         Notification? notification = await _context.Notification.FirstOrDefaultAsync(e => e.TaskId == task.Id);
                         DateTime notifyTime = (DateTime)scheduleTime;
